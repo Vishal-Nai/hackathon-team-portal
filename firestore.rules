@@ -1,0 +1,121 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isNonEmptyString(value, maxLen) {
+      return value is string && value.size() > 0 && value.size() <= maxLen;
+    }
+
+    function hackathonExists(hackathonId) {
+      return exists(/databases/$(database)/documents/hackathons/$(hackathonId));
+    }
+
+    function isValidHackathonCreate() {
+      return isSignedIn()
+        && request.resource.data.keys().hasOnly([
+          'adminTokenHash',
+          'createdAt',
+          'organizerUid',
+          'tagline',
+          'title'
+        ])
+        && request.resource.data.organizerUid == request.auth.uid
+        && isNonEmptyString(request.resource.data.title, 120)
+        && isNonEmptyString(request.resource.data.tagline, 220)
+        && request.resource.data.adminTokenHash is string
+        && request.resource.data.adminTokenHash.size() == 64;
+    }
+
+    function isValidHackathonUpdate() {
+      return isSignedIn()
+        && resource.data.organizerUid == request.auth.uid
+        && request.resource.data.adminTokenHash == resource.data.adminTokenHash
+        && request.resource.data.organizerUid == resource.data.organizerUid
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'tagline'])
+        && isNonEmptyString(request.resource.data.title, 120)
+        && isNonEmptyString(request.resource.data.tagline, 220);
+    }
+
+    function isValidIdeaRegistration(hackathonId, registrationId) {
+      return isSignedIn()
+        && hackathonExists(hackathonId)
+        && registrationId == request.resource.data.teamLeadEmail
+        && request.resource.data.keys().hasOnly([
+          'createdAt',
+          'cursorUsage',
+          'description',
+          'domain',
+          'projectName',
+          'tagline',
+          'teamLeadEmail',
+          'teamMembers',
+          'teamName',
+          'techStack'
+        ])
+        && isNonEmptyString(request.resource.data.teamLeadEmail, 320)
+        && request.resource.data.teamLeadEmail.matches('^[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}$')
+        && isNonEmptyString(request.resource.data.teamName, 120)
+        && isNonEmptyString(request.resource.data.projectName, 120)
+        && isNonEmptyString(request.resource.data.tagline, 120)
+        && isNonEmptyString(request.resource.data.description, 500)
+        && isNonEmptyString(request.resource.data.domain, 40)
+        && isNonEmptyString(request.resource.data.techStack, 240)
+        && request.resource.data.cursorUsage is list
+        && request.resource.data.cursorUsage.size() > 0
+        && request.resource.data.cursorUsage.size() <= 3
+        && request.resource.data.teamMembers is list
+        && request.resource.data.teamMembers.size() > 0
+        && request.resource.data.teamMembers.size() <= 6;
+    }
+
+    function isValidFinalSubmission(hackathonId, submissionId) {
+      return isSignedIn()
+        && hackathonExists(hackathonId)
+        && submissionId == request.resource.data.teamLeadEmail
+        && request.resource.data.keys().hasOnly([
+          'createdAt',
+          'demoVideoUrl',
+          'githubUrl',
+          'liveDemoUrl',
+          'notes',
+          'teamLeadEmail'
+        ])
+        && isNonEmptyString(request.resource.data.teamLeadEmail, 320)
+        && request.resource.data.teamLeadEmail.matches('^[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}$')
+        && isNonEmptyString(request.resource.data.githubUrl, 500)
+        && request.resource.data.githubUrl.matches('^https://([^/]*\\.)?github\\.com/.+$')
+        && isNonEmptyString(request.resource.data.liveDemoUrl, 500)
+        && request.resource.data.liveDemoUrl.matches('^https://.+$')
+        && (
+          !('demoVideoUrl' in request.resource.data)
+          || request.resource.data.demoVideoUrl.matches('^https://.+$')
+        )
+        && (
+          !('notes' in request.resource.data)
+          || (request.resource.data.notes is string && request.resource.data.notes.size() <= 600)
+        );
+    }
+
+    match /hackathons/{hackathonId} {
+      allow read: if true;
+      allow create: if isValidHackathonCreate();
+      allow update: if isValidHackathonUpdate();
+      allow delete: if false;
+
+      match /ideaRegistrations/{registrationId} {
+        allow create: if isValidIdeaRegistration(hackathonId, registrationId);
+        allow read, update, delete: if false;
+      }
+
+      match /finalSubmissions/{submissionId} {
+        allow create: if isValidFinalSubmission(hackathonId, submissionId);
+        allow read, update, delete: if false;
+      }
+    }
+  }
+}
