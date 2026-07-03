@@ -301,3 +301,7 @@ Teams register ideas and submit final projects through the shared link. All data
 ## Future Backend Migration
 
 Portal config reads/writes go through `src/services/portalConfig.ts`, and submissions go through `src/services/submission.ts`. The UI can later support organizer auth, dashboards, CSV export, judging, or duplicate idea detection without rewriting the forms.
+
+---
+
+Built with love using [Cursor](https://cursor.com).
