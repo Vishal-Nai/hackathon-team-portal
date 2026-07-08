@@ -15,14 +15,16 @@ interface AppShellProps {
 }
 
 export function AppShell({ children }: AppShellProps) {
-  const { status, user, signOut } = useAuth();
+  const { status, user, role, signOut } = useAuth();
   const location = useLocation();
   const { eventId } = useParams<{ eventId: string }>();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const isAuthenticated = status === "authenticated";
-  const isLoginPage = location.pathname === "/login";
-  const isInsideEvent = Boolean(eventId);
+  const isAdmin = role === "admin";
+  const isJudgePortal = location.pathname.startsWith("/judge");
+  const isLoginPage = location.pathname === "/login" || location.pathname === "/judge/login";
+  const isInsideEvent = Boolean(eventId) && !isJudgePortal;
 
   const navItems = useMemo(() => {
     if (!isInsideEvent || !eventId) {
@@ -71,16 +73,18 @@ export function AppShell({ children }: AppShellProps) {
         )}
       >
         <header className="flex shrink-0 flex-wrap items-center justify-between gap-4 py-2">
-          <Link className="group flex items-center gap-3" to={isAuthenticated ? "/" : "/login"}>
+          <Link className="group flex items-center gap-3" to={isAdmin ? "/" : isJudgePortal ? location.pathname : "/login"}>
             <PortalLogo />
             <span>
               <span className="block text-sm font-bold tracking-tight">{appConfig.appName}</span>
-              <span className="block text-xs text-slate-500 dark:text-slate-400">Admin portal</span>
+              <span className="block text-xs text-slate-500 dark:text-slate-400">
+                {isJudgePortal ? "Judge portal" : "Admin portal"}
+              </span>
             </span>
           </Link>
 
           <div className="flex items-center gap-2">
-            {isAuthenticated ? (
+            {isAuthenticated && isAdmin ? (
               <>
                 <nav className="mr-2 hidden items-center gap-1 lg:flex">
                   {navItems.map((item) => (
@@ -107,7 +111,7 @@ export function AppShell({ children }: AppShellProps) {
                   {mobileNavOpen ? <X size={18} /> : <Menu size={18} />}
                 </button>
               </>
-            ) : (
+            ) : !isJudgePortal ? (
               <Link
                 className="inline-flex min-h-11 items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold dark:border-slate-800 dark:bg-slate-950"
                 to="/login"
@@ -115,9 +119,9 @@ export function AppShell({ children }: AppShellProps) {
                 <LogIn size={16} />
                 Sign in
               </Link>
-            )}
+            ) : null}
 
-            {isAuthenticated && user ? (
+            {isAuthenticated && isAdmin && user ? (
               <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white py-1 pl-1 pr-1 dark:border-slate-800 dark:bg-slate-950">
                 <div className="hidden items-center gap-2 px-2 sm:flex" title={user.email ?? undefined}>
                   {user.photoURL ? (
@@ -148,7 +152,7 @@ export function AppShell({ children }: AppShellProps) {
           </div>
         </header>
 
-        {isAuthenticated && mobileNavOpen ? (
+        {isAuthenticated && isAdmin && mobileNavOpen ? (
           <nav className="mb-2 flex flex-col gap-1 rounded-2xl border border-slate-200 bg-white p-2 lg:hidden dark:border-slate-800 dark:bg-slate-950">
             {navItems.map((item) => (
               <Link

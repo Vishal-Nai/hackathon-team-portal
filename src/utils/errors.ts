@@ -9,12 +9,14 @@ const FIREBASE_AUTH_MESSAGES: Record<string, string> = {
   "auth/too-many-requests": "Too many attempts. Wait a moment and try again.",
   "auth/user-disabled": "This Google account has been disabled.",
   "auth/operation-not-allowed": "Google sign-in is not enabled in Firebase. Enable it under Authentication → Sign-in method.",
+  "auth/admin-restricted-operation":
+    "Anonymous sign-in is not enabled. In Firebase Console go to Authentication → Sign-in method → enable Anonymous, then try again.",
 };
 
 export function getFriendlyError(error: unknown, fallback = "Something went wrong. Please try again."): string {
   if (error instanceof FirebaseError) {
     if (error.code === "permission-denied") {
-      return "Firestore permission denied. Deploy firestore.rules and verify config/admins contains your signed-in email as an array.";
+      return "Firestore permission denied. If you are a judge, ask the organizer to deploy the latest firestore.rules and enable Anonymous auth. If you are an admin, verify config/admins contains your email as an array.";
     }
     if (FIREBASE_AUTH_MESSAGES[error.code]) {
       return FIREBASE_AUTH_MESSAGES[error.code];

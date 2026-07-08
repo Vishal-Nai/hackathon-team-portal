@@ -6,6 +6,14 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isAnonymousSignedIn() {
+      return isSignedIn()
+        && (
+          request.auth.token.firebase.sign_in_provider == 'anonymous'
+          || (request.auth.token.email == null && request.auth.token.firebase.sign_in_provider != 'google.com')
+        );
+    }
+
     function adminConfig() {
       return get(/databases/$(database)/documents/config/admins).data;
     }
@@ -35,8 +43,40 @@ service cloud.firestore {
         && isListedEmail(request.auth.token.email);
     }
 
+    function canReadEventData() {
+      return isAdmin() || isAnonymousSignedIn();
+    }
+
     function isValidOptionalUrl(value) {
       return value is string && (value.size() == 0 || value.matches('^https://.+$'));
+    }
+
+    function isValidJudgeId(judgeId) {
+      return judgeId is string
+        && judgeId.matches('^j[0-9]+$');
+    }
+
+    function isLegacyJudgeDocId(judgeId) {
+      return !(judgeId.matches('^j[0-9]+$'));
+    }
+
+    function isValidJudgeEvaluation() {
+      return request.resource.data.keys().hasOnly(['judgeName', 'rating', 'notes', 'updatedAt'])
+        && request.resource.data.judgeName is string
+        && request.resource.data.judgeName.size() > 0
+        && request.resource.data.judgeName.size() <= 80
+        && request.resource.data.rating is int
+        && request.resource.data.rating >= 1
+        && request.resource.data.rating <= 5
+        && request.resource.data.notes is string
+        && request.resource.data.notes.size() <= 2000
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    function isValidTeamEvaluationParent() {
+      return request.resource.data.keys().hasOnly(['teamId'])
+        && request.resource.data.teamId is string
+        && request.resource.data.teamId.size() > 0;
     }
 
     function isValidEventCreate() {
@@ -87,21 +127,38 @@ service cloud.firestore {
     }
 
     match /config/admins {
-      allow read: if isSignedIn();
+      allow read: if isAdmin();
       allow write: if false;
     }
 
     match /events/{eventId} {
-      allow read: if isAdmin();
+      allow read: if canReadEventData();
       allow create: if isValidEventCreate();
       allow update: if isValidEventUpdate();
       allow delete: if false;
 
       match /datasets/{datasetId} {
-        allow read, write: if isAdmin();
+        allow read: if canReadEventData();
+        allow write: if isAdmin();
 
         match /rows/{rowId} {
-          allow read, write: if isAdmin();
+          allow read: if canReadEventData();
+          allow write: if isAdmin();
+        }
+      }
+
+      match /evaluations/{teamId} {
+        allow read: if canReadEventData();
+        allow create, update: if isAnonymousSignedIn() && isValidTeamEvaluationParent();
+        allow delete: if isAdmin();
+
+        match /judges/{judgeId} {
+          allow read: if canReadEventData();
+          allow create, update: if isAnonymousSignedIn()
+            && isValidJudgeId(judgeId)
+            && isValidJudgeEvaluation();
+          allow delete: if isAdmin()
+            || (isAnonymousSignedIn() && isLegacyJudgeDocId(judgeId));
         }
       }
     }

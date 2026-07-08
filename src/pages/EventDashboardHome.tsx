@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { AlertTriangle, ArrowRight, Calendar, ClipboardList, ExternalLink, Pencil, Rocket } from "lucide-react";
+import { AlertTriangle, ArrowRight, Calendar, ClipboardList, ExternalLink, Pencil, Rocket, Star } from "lucide-react";
 import { Button } from "../components/Button";
 import { EditEventModal } from "../components/EditEventModal";
 import { EventSummaryPanel } from "../components/EventSummaryPanel";
@@ -11,6 +11,8 @@ import { formatEventDate, getEvent } from "../services/events";
 import type { HackathonEvent } from "../types/event";
 import type { EventSummaryStats, MergedTeam } from "../types/teams";
 import { getFriendlyError } from "../utils/errors";
+import { isJudgePortalConfigured } from "../config/judges";
+import { countEventEvaluations } from "../services/judgeEvaluations";
 
 interface DashboardSummary {
   rowCount: number;
@@ -42,6 +44,7 @@ export function EventDashboardHome() {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [evaluationCount, setEvaluationCount] = useState<number | null>(null);
 
   useEffect(() => {
     if (!eventId) {
@@ -79,6 +82,15 @@ export function EventDashboardHome() {
           issueCount: teamsData.subMeta?.issueCount ?? 0,
           fileName: teamsData.subMeta?.fileName ?? null,
         });
+
+        if (isJudgePortalConfigured()) {
+          try {
+            const count = await countEventEvaluations(currentEventId);
+            setEvaluationCount(count);
+          } catch {
+            setEvaluationCount(0);
+          }
+        }
       } catch (error) {
         setLoadError(getFriendlyError(error, "Failed to load event."));
       } finally {
@@ -154,6 +166,31 @@ export function EventDashboardHome() {
       <EventSummaryPanel eventId={eventId} eventName={event.name} summary={summary} teams={teams} />
 
       <SyncChecklist event={event} eventId={eventId} summary={summary} />
+
+      <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-bold text-slate-950 dark:text-white">Judge portal</h2>
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+              Share this link and a private access code with each judge. Judges can view teams, rate submissions, and see
+              each other&apos;s feedback.
+            </p>
+            <p className="mt-3 break-all rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 font-mono text-xs text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200">
+              {typeof window !== "undefined" ? `${window.location.origin}/judge/events/${eventId}` : `/judge/events/${eventId}`}
+            </p>
+          </div>
+          {isJudgePortalConfigured() ? (
+            <Link
+              className="inline-flex min-h-11 items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-950 dark:text-white dark:hover:bg-slate-900"
+              to={`/events/${eventId}/judge-scores`}
+            >
+              <Star size={16} />
+              View judge scores
+              {evaluationCount !== null && evaluationCount > 0 ? ` (${evaluationCount})` : ""}
+            </Link>
+          ) : null}
+        </div>
+      </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         <DashboardCard

@@ -1,12 +1,16 @@
 import { Toaster } from "react-hot-toast";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "./components/AppShell";
+import { JudgeRoute } from "./components/JudgeRoute";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
+import { AdminJudgeScoresPage } from "./pages/AdminJudgeScoresPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { EventDashboardHome } from "./pages/EventDashboardHome";
 import { EventTeamsPage } from "./pages/EventTeamsPage";
 import { EventsHome } from "./pages/EventsHome";
+import { JudgeEventPage } from "./pages/JudgeEventPage";
+import { JudgeLoginPage } from "./pages/JudgeLoginPage";
 import { LoginPage } from "./pages/LoginPage";
 
 export function App() {
@@ -30,7 +34,7 @@ export function App() {
 }
 
 function AppRoutes() {
-  const { status } = useAuth();
+  const { status, role } = useAuth();
 
   if (status === "loading") {
     return (
@@ -39,7 +43,7 @@ function AppRoutes() {
           Loading
         </p>
         <h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-950 dark:text-white">
-          Starting admin portal
+          Starting portal
         </h1>
       </section>
     );
@@ -48,8 +52,17 @@ function AppRoutes() {
   return (
     <Routes>
       <Route
-        element={status === "authenticated" ? <Navigate replace to="/" /> : <LoginPage />}
+        element={status === "authenticated" && role === "admin" ? <Navigate replace to="/" /> : <LoginPage />}
         path="/login"
+      />
+      <Route element={<JudgeLoginPage />} path="/judge/login" />
+      <Route
+        element={
+          <JudgeRoute>
+            <JudgeEventPage />
+          </JudgeRoute>
+        }
+        path="/judge/events/:eventId"
       />
       <Route
         element={
@@ -66,6 +79,14 @@ function AppRoutes() {
           </ProtectedRoute>
         }
         path="/events/:eventId"
+      />
+      <Route
+        element={
+          <ProtectedRoute>
+            <AdminJudgeScoresPage />
+          </ProtectedRoute>
+        }
+        path="/events/:eventId/judge-scores"
       />
       <Route
         element={

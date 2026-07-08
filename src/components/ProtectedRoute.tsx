@@ -7,7 +7,7 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { status } = useAuth();
+  const { status, role } = useAuth();
   const location = useLocation();
 
   if (status === "loading") {
@@ -23,7 +23,7 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     );
   }
 
-  if (status === "unauthenticated") {
+  if (status !== "authenticated" || role !== "admin") {
     return <Navigate replace state={{ from: location.pathname }} to="/login" />;
   }
 

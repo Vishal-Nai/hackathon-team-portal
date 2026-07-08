@@ -20,6 +20,7 @@ A private admin dashboard for managing hackathon data from Typeform CSV exports.
 - **Mismatch detection** — duplicate emails, invalid URLs, cross-dashboard gaps
 - **Search & filters** — search all fields, filter mismatches only
 - **CSV export** — download data with an `_issues` column
+- **Judge portal** — share event link + private codes so judges can rate teams and add notes
 - **Light/dark theme**
 
 ## How It Works
@@ -181,6 +182,13 @@ Open `http://localhost:5173` and sign in with Google.
 3. Enable **Google** and set a support email.
 4. Click **Save**.
 
+### 3b. Enable Anonymous Authentication (required for judge portal)
+
+1. In **Sign-in method**, enable **Anonymous**.
+2. Click **Save**.
+
+Judges use anonymous sign-in behind the scenes after entering their access code. Admins still use Google only.
+
 ### 4. Create Firestore database (if needed)
 
 1. Go to **Build → Firestore Database**.
@@ -296,6 +304,33 @@ Matching uses **emails found in each row** (primary email + any other email fiel
 
 Click **Export CSV** to download the current dataset with an `_issues` column listing detected problems.
 
+### Judge portal
+
+Judges do **not** need Google accounts. Each judge gets a private access code (configured in `VITE_JUDGES`).
+
+1. Set `VITE_JUDGES` in `.env.local` (see `.env.example`) with one entry per judge: `id`, `name`, `code`.
+2. Enable **Anonymous** authentication in Firebase Console (see setup above).
+3. Deploy updated `firestore.rules`.
+4. On the event home page, copy the **Judge portal** link.
+5. Share the link plus each judge's private code.
+
+Judge URL: `/judge/events/{eventId}`
+
+Judges can:
+
+- View teams with registration and submission details
+- Rate each team (1–5 stars) and add notes
+- See all judges' ratings and notes (labeled with judge name chips)
+- Open the **Summary** tab for an overview of all teams and scores
+
+**Admins:** On the event home page, click **View judge scores** for a read-only summary (no judge code needed).
+
+When a judge re-saves a rating, older duplicate docs (from before stable judge IDs) are cleaned up automatically.
+
+**Security note:** Codes in `VITE_JUDGES` are included in the client bundle. This is fine for a small trusted hackathon, but not enterprise-grade. Use long random codes and share them privately.
+
+**Same browser tip:** If an admin is signed in with Google on the same browser, judges should use incognito/private mode (Firebase allows one auth user per tab).
+
 ---
 
 ## Data Model
@@ -318,6 +353,12 @@ events/{eventId}/datasets/submissions
 
 events/{eventId}/datasets/submissions/rows/{rowId}
   rowIndex, fields, issues, hasIssues, importId
+
+events/{eventId}/evaluations/{teamId}
+  teamId
+
+events/{eventId}/evaluations/{teamId}/judges/{judgeUid}
+  judgeName, rating, notes, updatedAt
 ```
 
 Each CSV row is stored as a Firestore document with dynamic `fields` (whatever columns your Typeform export contains).
@@ -380,11 +421,12 @@ npx firebase-tools deploy --only hosting,firestore:rules,firestore:indexes
 
 ## Security Model
 
-- Only Google accounts in Firestore `config/admins.emails` can read/write data (rules enforce this server-side).
-- All routes require authentication.
-- Firestore rules deny access to unauthenticated users and non-admin emails.
+- **Admins:** Only Google accounts in Firestore `config/admins.emails` can create events and upload CSVs.
+- **Judges:** Enter a private code (from `VITE_JUDGES`), then sign in anonymously to read team data and save evaluations.
+- Firestore rules let anonymous users read event/dataset data and write only their own evaluation documents.
 - `config/admins` is read-only from the client — manage admins in Firebase Console.
-- No public forms or anonymous access — Typeform handles participant-facing forms.
+- Judge codes in `VITE_*` env vars are visible in the built app — treat them as shared secrets, not strong authentication.
+- Typeform handles participant-facing forms.
 
 ---
 
@@ -404,6 +446,10 @@ npx firebase-tools deploy --only hosting,firestore:rules,firestore:indexes
 | Cross-check false positives | Use the same team lead email on registration and submission forms |
 | Data empty after re-upload | Re-upload CSV — safe import uses `importId`; legacy rows are replaced on next import |
 | Typeform column missing in table | Re-export CSV from Typeform; ensure the question has at least one response |
+| Judge "Invalid code" | Check `VITE_JUDGES` in production env; codes are case-sensitive |
+| Judge "Permission denied" | Enable Anonymous auth; deploy latest `firestore.rules` |
+| Judge portal empty | Upload registration/submission CSVs first; judges see teams with submissions by default |
+| Admin and judge same browser | Use incognito for judges, or sign out admin first |
 
 ---
 
