@@ -13,7 +13,9 @@ if (!rootElement) {
 createRoot(rootElement).render(
   <StrictMode>
     <BrowserRouter>
-      <App />
+      <div className="h-full">
+        <App />
+      </div>
     </BrowserRouter>
   </StrictMode>,
 );

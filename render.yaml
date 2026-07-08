@@ -6,9 +6,7 @@ services:
     staticPublishPath: dist
     pullRequestPreviewsEnabled: true
     envVars:
-      - key: VITE_HACKATHON_NAME
-        sync: false
-      - key: VITE_HACKATHON_TAGLINE
+      - key: VITE_APP_NAME
         sync: false
       - key: VITE_FIREBASE_API_KEY
         sync: false
@@ -25,6 +23,8 @@ services:
       - key: VITE_FIREBASE_APP_CHECK_SITE_KEY
         sync: false
       - key: VITE_FIREBASE_APP_CHECK_DEBUG_TOKEN
+        sync: false
+      - key: VITE_JUDGES
         sync: false
     routes:
       - type: rewrite

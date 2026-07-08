@@ -1,8 +1,5 @@
 export const appConfig = {
-  defaultHackathonName: import.meta.env.VITE_HACKATHON_NAME ?? "Hackathon Team Portal",
-  defaultTagline:
-    import.meta.env.VITE_HACKATHON_TAGLINE ??
-    "A clean two-step portal for collecting team ideas at kickoff and final project links at judging time.",
+  appName: import.meta.env.VITE_APP_NAME ?? "Hackathon Admin Portal",
   firebase: {
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY ?? "",
     appId: import.meta.env.VITE_FIREBASE_APP_ID ?? "",

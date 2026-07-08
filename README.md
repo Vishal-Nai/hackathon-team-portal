@@ -1,30 +1,149 @@
-# Hackathon Team Portal
+# Hackathon Admin Portal
 
-A public, mobile-first React + TypeScript + Vite portal for hackathon team idea registration and final project submission.
+A private admin dashboard for managing hackathon data from Typeform CSV exports. Sign in with Google, create events, upload registration and submission CSVs per event, review teams, detect mismatches, and export reports.
+
+**No fixed schema** — the portal accepts any Typeform field names. Recommended names below improve auto-detection; they are not required.
 
 ## Features
 
-- Two public workflows: idea registration and final project submission.
-- Organizer settings flow that creates a unique hackathon link.
-- Firebase Firestore storage for hackathon settings, registrations, and submissions.
-- React Hook Form + Zod validation.
-- Light/dark theme toggle.
-- Autosaved drafts in `localStorage` (scoped per hackathon portal).
-- Dynamic team member list with a maximum of 6 members.
-- Production-minded UI inspired by Cursor, Vercel, Linear, and GitHub.
+- **Google sign-in** — private access for admins listed in Firestore `config/admins`
+- **Events** — create and edit events (name, date, Luma link, Typeform form links); all data scoped per event
+- **Event summary** — registered / submitted / missing submission counts with chase list export
+- **Unified teams view** — registration + submission merged per team with clickable GitHub/demo links
+- **Sync checklist** — step-by-step Typeform CSV workflow with quick-open form links
+- **Column controls** — pin or hide columns per dashboard (saved in browser)
+- **Dynamic CSV dashboards** — every Typeform column appears in the table as exported
+- **Auto column detection** — emails, team names, members, and URLs detected from headers and cell values
+- **Safe CSV import** — atomic replace: new rows written first, then stale rows purged
+- **Server pagination** — paginated Firestore queries for large datasets
+- **Team member view** — expand rows to see detected team members
+- **Mismatch detection** — duplicate emails, invalid URLs, cross-dashboard gaps
+- **Search & filters** — search all fields, filter mismatches only
+- **CSV export** — download data with an `_issues` column
+- **Judge portal** — share event link + private codes so judges can rate teams and add notes
+- **Light/dark theme**
+
+## How It Works
+
+```text
+Typeform (registration form)  ──export CSV──┐
+                                            ├──► Admin Portal (per event) ──► Firestore
+Typeform (submission form)    ──export CSV──┘
+```
+
+1. Participants register and submit via **Typeform** forms you share (e.g. from your Luma event page).
+2. You **export responses as CSV** from Typeform (no API or webhook required).
+3. You create an **event** in the portal and upload each CSV to the matching dashboard.
+4. The portal auto-detects columns, stores data in **Firestore**, and flags data issues.
+5. You **re-export** from Typeform and re-upload anytime to refresh data.
+
+---
+
+## Typeform Setup & Connection
+
+This portal does **not** connect to Typeform via API. The link is manual: **Typeform → CSV export → upload here**. That keeps setup simple and works with any Typeform plan.
+
+### End-to-end workflow
+
+| Step | Where | Action |
+|------|--------|--------|
+| 1 | Typeform | Create two forms: **Registration** and **Project Submission** |
+| 2 | Luma / event page | Share the Typeform links with participants |
+| 3 | Admin Portal | Create an event (name, date, Luma link, optional Typeform URLs) |
+| 4 | Typeform | Open form → **Results** → **Export** → **CSV** |
+| 5 | Admin Portal | Open event → **Registrations** or **Submissions** → upload CSV |
+| 6 | Admin Portal | Review **Event summary**, **All teams**, issues → export chase list if needed |
+
+Repeat steps 4–5 whenever you want fresh data (e.g. after registration closes or before judging).
+
+### Exporting CSV from Typeform
+
+1. Open your form in [Typeform](https://www.typeform.com/).
+2. Go to the **Results** tab.
+3. Click **Export** (or the download icon).
+4. Choose **CSV**.
+5. Upload that file to the correct dashboard in the portal:
+   - Registration responses → **Registrations**
+   - Submission responses → **Submissions**
+
+**Tip:** Export and upload both forms for the same event so cross-checks (registration ↔ submission) can run.
+
+### Recommended Typeform field names
+
+You can use **any** question titles — the portal shows all columns dynamically. These names help auto-detection work reliably on the first upload (fewer overrides, better team/member parsing, cleaner cross-checks).
+
+#### Registration form
+
+| Field purpose | Recommended question title | Typeform field type | Notes |
+|---------------|---------------------------|---------------------|-------|
+| Team lead email | `Team Lead Email` | Email | **Most important** — used to match registration ↔ submission |
+| Team name | `Team Name` | Short text | Shown in team summary |
+| Member 1 name | `Member 1 Name` | Short text | Pair with email below |
+| Member 1 email | `Member 1 Email` | Email | Repeat pattern for Member 2, 3, … |
+| Member 2 name | `Member 2 Name` | Short text | |
+| Member 2 email | `Member 2 Email` | Email | |
+| All members (alternative) | `Team Members` | Long text | Comma-separated names if you prefer one field |
+
+**Minimum for cross-checks:** at least one **email** field per response (ideally the team lead’s email). Use the **same person’s email** on the submission form.
+
+#### Project submission form
+
+| Field purpose | Recommended question title | Typeform field type | Notes |
+|---------------|---------------------------|---------------------|-------|
+| Team lead email | `Team Lead Email` | Email | Should match registration email |
+| Team name | `Team Name` | Short text | Optional but helpful |
+| GitHub repo | `GitHub Repository URL` | Website / URL | Values should start with `https://` |
+| Live demo | `Live Demo URL` | Website / URL | Deployment or demo link |
+| Demo video | `Demo Video URL` | Website / URL | Optional (YouTube, Loom, etc.) |
+| Project title | `Project Title` | Short text | Appears in table; not required for checks |
+
+#### Naming tips
+
+- Use **Email** and **Website/URL** field types in Typeform where possible (validates input).
+- Keep question titles **stable** — renaming a question changes the CSV header and may reset auto-detection on re-upload.
+- Use **numbered member fields** (`Member 1 Name`, `Member 1 Email`) instead of one combined block when teams have 2–4 members.
+- Put the **team lead email** in a dedicated email question, not buried in a long-text “tell us about your team” answer.
+
+### What if my field names are different?
+
+The portal still works. It detects columns by:
+
+1. **Header text** (e.g. anything containing “email”, “github”, “demo”)
+2. **Cell content** (valid emails, `https://` URLs, name-like text)
+
+If auto-detection picks the wrong primary email (e.g. you have both “Personal Email” and “Team Lead Email”), open **Override** on the dashboard and select the correct column once. All columns remain visible in the table regardless of detection.
+
+### Connecting Luma to this flow
+
+The portal stores a **Luma event link** on each event for your reference (open from the event page). Luma does not sync automatically with Typeform or this portal. Typical setup:
+
+1. Create the event on [Luma](https://lu.ma/).
+2. Add Typeform registration/submission links to the Luma event description or confirmation emails.
+3. Paste the Luma URL when creating the event in this portal.
+4. After the hackathon, export Typeform CSVs and upload them here for review and judging.
+
+---
 
 ## Local Setup
 
+### 1. Install dependencies
+
 ```bash
 npm install
-npm run dev
 ```
 
-Copy `.env.example` to `.env.local` and add your Firebase web app config:
+### 2. Configure environment variables
+
+Copy `.env.example` to `.env.local`:
 
 ```bash
-VITE_HACKATHON_NAME="Hackathon Team Portal"
-VITE_HACKATHON_TAGLINE="A clean two-step portal for collecting team ideas and final project links."
+cp .env.example .env.local
+```
+
+Fill in Firebase config values (admins are managed in Firestore, not env vars):
+
+```env
+VITE_APP_NAME="Hackathon Admin Portal"
 VITE_FIREBASE_API_KEY="your-api-key"
 VITE_FIREBASE_AUTH_DOMAIN="your-project.firebaseapp.com"
 VITE_FIREBASE_PROJECT_ID="your-project-id"
@@ -33,205 +152,237 @@ VITE_FIREBASE_MESSAGING_SENDER_ID="your-sender-id"
 VITE_FIREBASE_APP_ID="your-app-id"
 ```
 
-## Firebase Console Setup
-
-Follow these steps in your Firebase project. If you already created a project for this portal, skip to the **Existing project checklist** below.
-
-### 1. Create A Firebase Project (new projects only)
-
-1. Open [Firebase Console](https://console.firebase.google.com/).
-2. Click **Add project**.
-3. Enter a project name, for example `Hackathon Team Portal`.
-4. Click **Continue**.
-5. For Google Analytics, choose **Disable** for the simplest setup.
-6. Click **Create project**.
-7. Wait for Firebase to finish setup, then click **Continue**.
-
-### 2. Create A Web App (if not done yet)
-
-1. On the Firebase project home page, click the **Web** icon: `</>`.
-2. Enter app nickname: `Hackathon Portal`.
-3. Click **Register app**.
-4. Copy the config values into `.env.local`.
-
-Example:
-
-```bash
-VITE_FIREBASE_API_KEY="apiKey value"
-VITE_FIREBASE_AUTH_DOMAIN="authDomain value"
-VITE_FIREBASE_PROJECT_ID="projectId value"
-VITE_FIREBASE_STORAGE_BUCKET="storageBucket value"
-VITE_FIREBASE_MESSAGING_SENDER_ID="messagingSenderId value"
-VITE_FIREBASE_APP_ID="appId value"
-```
-
-### 3. Enable Anonymous Authentication (required)
-
-The refactored portal requires anonymous sign-in for Firestore writes.
-
-1. In the left menu, click **Build → Authentication**.
-2. Click **Get started** if needed.
-3. Open the **Sign-in method** tab.
-4. Enable **Anonymous** and click **Save**.
-
-### 4. Create Firestore Database (if not done yet)
-
-1. In the left menu, click **Build → Firestore Database**.
-2. Click **Create database** if you do not already have one.
-3. Choose **Start in production mode**.
-4. Select a region close to your users. For India, choose `asia-south1` if available.
-5. Click **Enable**.
-
-### 5. Publish Firestore Security Rules (required)
-
-The old starter rules in this README are **no longer valid**. Use the rules file in the repo root: `firestore.rules`.
-
-**Option A — Firebase CLI (recommended):**
-
-```bash
-firebase login
-firebase use your-project-id
-firebase deploy --only firestore:rules
-```
-
-**Option B — Firebase Console:**
-
-1. Open **Firestore Database → Rules**.
-2. Replace the rules with the contents of `firestore.rules` from this repo.
-3. Click **Publish**.
-
-### 6. Deploy The Admin Recovery Cloud Function (required for admin edits on a new device)
-
-Organizers can update settings on the same browser where they created the portal. To recover admin access on another device using the admin link, deploy:
-
-```bash
-cd functions
-npm install
-cd ..
-firebase deploy --only functions:updateHackathonConfig
-```
-
-If you skip this step, portal creation and attendee submissions still work. Admin settings updates on a **new browser/device** will fail until the function is deployed.
-
-### 7. Add Authorized Domains (required for production)
-
-1. Open **Authentication → Settings → Authorized domains**.
-2. Add your production domain (for example `your-app.vercel.app`).
-3. `localhost` is allowed by default for local dev.
-
-### 8. Optional: Enable App Check
-
-For stronger bot protection:
-
-1. Open **Build → App Check**.
-2. Register your web app with reCAPTCHA v3.
-3. Add the site key to `.env.local` as `VITE_FIREBASE_APP_CHECK_SITE_KEY`.
-4. When ready, enforce App Check for Firestore in the App Check settings.
-
-### 9. Run The Portal Locally
+### 3. Run locally
 
 ```bash
 npm run dev
 ```
 
-Open the local URL shown by Vite. It is usually:
-
-```text
-http://localhost:5173
-```
-
-### 10. Create Your First Hackathon
-
-1. Open the portal in your browser.
-2. Click **Settings** in the top-right corner.
-3. Enter the hackathon title and tagline.
-4. Click **Save and Generate Link**.
-5. Copy the **Attendee link** and **Admin edit link**.
-6. Share the attendee link with teams. Store the admin link safely.
-
-### 11. View Submitted Data
-
-1. Go back to [Firebase Console](https://console.firebase.google.com/).
-2. Open your project.
-3. Click **Build → Firestore Database → Data**.
-4. Open the `hackathons` collection.
-5. Open a hackathon document to see:
-   - `ideaRegistrations`
-   - `finalSubmissions`
+Open `http://localhost:5173` and sign in with Google.
 
 ---
 
-## Existing Project Checklist
+## Firebase Console Setup
 
-If you already set up Firebase before the refactoring, you only need to change these things:
+### 1. Create a Firebase project (if needed)
 
-| Step | Required? | What to do |
-|------|-----------|------------|
-| Enable **Anonymous Auth** | **Yes** | Authentication → Sign-in method → Anonymous → Enable |
-| Replace **Firestore rules** | **Yes** | Deploy `firestore.rules` (old rules will block writes) |
-| Deploy **Cloud Function** | **Yes** (for admin recovery) | `firebase deploy --only functions:updateHackathonConfig` |
-| Add **authorized domain** | **Yes** (for production) | Authentication → Settings → Authorized domains |
-| Enable **App Check** | Optional | Recommended before high-traffic launch |
-| Re-create **hackathon portal** | Recommended | Old portals lack `organizerUid` and won't support settings updates |
+1. Open [Firebase Console](https://console.firebase.google.com/).
+2. Click **Add project** and follow the wizard.
+3. Disable Google Analytics if you want the simplest setup.
 
-Your `.env.local` Firebase config values (`VITE_FIREBASE_*`) do **not** need to change unless you add optional App Check keys.
+### 2. Register a web app
+
+1. On the project home page, click the **Web** icon (`</>`).
+2. Register the app and copy config values into `.env.local`.
+
+### 3. Enable Google Authentication (required)
+
+1. Go to **Build → Authentication**.
+2. Open the **Sign-in method** tab.
+3. Enable **Google** and set a support email.
+4. Click **Save**.
+
+### 3b. Enable Anonymous Authentication (required for judge portal)
+
+1. In **Sign-in method**, enable **Anonymous**.
+2. Click **Save**.
+
+Judges use anonymous sign-in behind the scenes after entering their access code. Admins still use Google only.
+
+### 4. Create Firestore database (if needed)
+
+1. Go to **Build → Firestore Database**.
+2. Click **Create database**.
+3. Choose **Start in production mode**.
+4. Pick a region close to you (e.g. `asia-south1` for India).
+
+### 5. Add admin allowlist in Firestore (required)
+
+Create a document that Firestore security rules use to verify admins:
+
+| Field | Value |
+|-------|-------|
+| Collection | `config` |
+| Document ID | `admins` |
+| Field | `emails` (type: **array**) |
+| Value | `["your-email@gmail.com"]` |
+
+**Important:** `emails` must be an **array**, not a plain string. In the Firebase Console, choose field type **array** when adding it.
+
+Example:
+
+```json
+{
+  "emails": ["your-email@gmail.com"]
+}
+```
+
+To add more admins later, edit this document in the Firebase Console (rules block client writes to `config/admins`).
+
+### 6. Deploy Firestore security rules and indexes (required)
+
+**Option A — Firebase CLI (recommended):**
+
+```bash
+npx firebase-tools login
+npx firebase-tools use your-project-id
+npx firebase-tools deploy --only firestore:rules,firestore:indexes
+```
+
+**Option B — Firebase Console (no CLI needed):**
+
+1. Open **Firestore Database → Rules**.
+2. Replace **all** rules with the contents of `firestore.rules` from this repo.
+3. Click **Publish**.
+4. Open **Firestore Database → Indexes**.
+5. Add composite indexes from `firestore.indexes.json` (or deploy via CLI above).
+
+Indexes are required for paginated queries (`importId` + `rowIndex`, `hasIssues` filters).
+
+### 7. Add authorized domains (required for production)
+
+1. Go to **Authentication → Settings → Authorized domains**.
+2. Add your production domain (e.g. `your-app.vercel.app`).
+3. `localhost` is allowed by default for local development.
+
+### 8. Optional: App Check
+
+For stronger bot protection:
+
+1. Go to **Build → App Check**.
+2. Register your web app with reCAPTCHA v3.
+3. Add the site key to `.env.local` as `VITE_FIREBASE_APP_CHECK_SITE_KEY`.
+
+---
+
+## Usage
+
+### Create an event
+
+1. Sign in to the admin portal.
+2. On the home page, click **Create event**.
+3. Enter event name, date, Luma link, and optional Typeform registration/submission URLs.
+4. Open the event to access the **summary**, **sync checklist**, and dashboards.
+
+### Event summary & chase list
+
+On each event home page:
+
+- See **registered**, **submitted**, **missing submission**, and **data issues** counts
+- Open **All teams** for the unified reg + submission view
+- **Export chase list** — CSV of teams that registered but have not submitted
+
+### Unified teams view
+
+Route: `/events/{eventId}/teams`
+
+- One row per team with registration and submission merged by email
+- Clickable GitHub, demo, and other URL links
+- Filter by status: matched, missing submission, submission only, has issues
+- Export filtered teams or chase list
+
+### Upload CSV from Typeform
+
+1. Export CSV from Typeform (see [Typeform Setup & Connection](#typeform-setup--connection)).
+2. Open the event → **Registrations** or **Submissions**.
+3. Drag & drop the CSV or click **Upload CSV**.
+4. Review the table — all Typeform columns appear automatically.
+5. Expand rows to see detected team members and issues.
+
+Uploading a new CSV **replaces** the previous dataset for that dashboard (safe import: new data is written before old rows are removed).
+
+### Cross-check registrations vs submissions
+
+After both CSVs are uploaded for an event:
+
+- Registrations without a matching submission are flagged.
+- Submissions without a matching registration are flagged.
+
+Matching uses **emails found in each row** (primary email + any other email fields). Click **Re-analyze** to refresh cross-checks after uploading or updating data.
+
+### Export data
+
+Click **Export CSV** to download the current dataset with an `_issues` column listing detected problems.
+
+### Judge portal
+
+Judges do **not** need Google accounts. Each judge gets a private access code (configured in `VITE_JUDGES`).
+
+1. Set `VITE_JUDGES` in `.env.local` (see `.env.example`) with one entry per judge: `id`, `name`, `code`.
+2. Enable **Anonymous** authentication in Firebase Console (see setup above).
+3. Deploy updated `firestore.rules`.
+4. On the event home page, copy the **Judge portal** link.
+5. Share the link plus each judge's private code.
+
+Judge URL: `/judge/events/{eventId}`
+
+Judges can:
+
+- View teams with registration and submission details
+- Rate each team (1–5 stars) and add notes
+- See all judges' ratings and notes (labeled with judge name chips)
+- Open the **Summary** tab for an overview of all teams and scores
+
+**Admins:** On the event home page, click **View judge scores** for a read-only summary (no judge code needed).
+
+When a judge re-saves a rating, older duplicate docs (from before stable judge IDs) are cleaned up automatically.
+
+**Security note:** Codes in `VITE_JUDGES` are included in the client bundle. This is fine for a small trusted hackathon, but not enterprise-grade. Use long random codes and share them privately.
+
+**Same browser tip:** If an admin is signed in with Google on the same browser, judges should use incognito/private mode (Firebase allows one auth user per tab).
 
 ---
 
 ## Data Model
 
-Firestore stores each hackathon as one document:
-
 ```text
-hackathons/{portalId}
-  title
-  tagline
-  adminTokenHash
-  organizerUid
-  createdAt
+config/admins
+  emails: string[]
+
+events/{eventId}
+  name, date, lumaEventLink, typeformRegistrationUrl, typeformSubmissionUrl, createdAt, createdBy
+
+events/{eventId}/datasets/registrations
+  columns, columnMapping, fileName, uploadedAt, uploadedBy, rowCount, issueCount, importId
+
+events/{eventId}/datasets/registrations/rows/{rowId}
+  rowIndex, fields, issues, hasIssues, importId
+
+events/{eventId}/datasets/submissions
+  (same meta fields)
+
+events/{eventId}/datasets/submissions/rows/{rowId}
+  rowIndex, fields, issues, hasIssues, importId
+
+events/{eventId}/evaluations/{teamId}
+  teamId
+
+events/{eventId}/evaluations/{teamId}/judges/{judgeUid}
+  judgeName, rating, notes, updatedAt
 ```
 
-Idea registrations (one per team lead email):
+Each CSV row is stored as a Firestore document with dynamic `fields` (whatever columns your Typeform export contains).
 
-```text
-hackathons/{portalId}/ideaRegistrations/{teamLeadEmail}
-  createdAt
-  teamLeadEmail
-  teamName
-  projectName
-  tagline
-  description
-  domain
-  techStack
-  cursorUsage
-  teamMembers
-```
+---
 
-Final submissions (one per team lead email):
+## Column Detection
 
-```text
-hackathons/{portalId}/finalSubmissions/{teamLeadEmail}
-  createdAt
-  teamLeadEmail
-  githubUrl
-  liveDemoUrl
-  demoVideoUrl
-  notes
-```
+The portal is **fully dynamic** — upload any Typeform CSV and all columns appear in the table as-is. No fixed schema is required.
 
-The shared attendee link looks like:
+Detection uses **both column headers and actual cell values**:
 
-```text
-https://your-domain.com/?portal=<portalId>
-```
+| Purpose | How it's detected |
+|---------|-------------------|
+| Primary email | Column with the highest ratio of valid, unique email values (header hints are a bonus, not required) |
+| Team name | Text column with name-like values |
+| Members | Additional email/name columns, numbered pairs, or comma-separated member lists |
+| URL fields | Columns where values look like `https://...` (GitHub, demo, video inferred from content) |
 
-The admin edit link looks like:
+Cross-checks between registrations and submissions match on **any email in a row**, so different field names between forms still work.
 
-```text
-https://your-domain.com/?portal=<portalId>&admin=<adminToken>
-```
+Optional **Override** (collapsed by default) lets you pick a different primary email column if auto-detection is wrong.
 
-After the first admin visit, the token is stored in `sessionStorage` and removed from the URL.
+---
 
 ## Production Deployment
 
@@ -243,65 +394,63 @@ Set all `VITE_*` environment variables in your hosting provider, then:
 npm run build
 ```
 
-### SPA Routing
+### SPA routing
 
-Direct visits to routes like `/register?portal=abc` require a catch-all rewrite to `index.html`.
-
-This repo includes:
+Direct visits to routes like `/events/abc123/registrations` require a catch-all rewrite to `index.html`. This repo includes:
 
 - `vercel.json` for Vercel
-- `render.yaml` for Render static sites
+- `render.yaml` for Render
 - `public/_redirects` for Netlify
 - `firebase.json` hosting rewrites for Firebase Hosting
 
 ### Vercel
 
-1. Import the GitHub repository in [Vercel](https://vercel.com/new).
+1. Import the repository in [Vercel](https://vercel.com/new).
 2. Framework preset: **Vite**.
-3. Add all `VITE_*` variables from `.env.example` in **Project Settings → Environment Variables**.
-4. Deploy. Vercel uses `vercel.json` for SPA routing.
+3. Add all `VITE_*` variables from `.env.example`.
+4. Deploy.
 
-### Render
-
-1. Create a **Static Site** in [Render](https://render.com/) and connect this repository.
-2. Render reads `render.yaml` automatically on Blueprint deploy, or set manually:
-   - **Build command:** `npm ci && npm run build`
-   - **Publish directory:** `dist`
-3. Add all `VITE_*` variables from `.env.example` in the Render dashboard.
-4. SPA routing is configured via `render.yaml` rewrites.
-
-### Firebase Hosting Example
+### Firebase Hosting
 
 ```bash
 npm run build
-firebase deploy --only hosting
+npx firebase-tools deploy --only hosting,firestore:rules,firestore:indexes
 ```
-
-## Security Model
-
-- Attendees can read hackathon title/tagline and create submissions only.
-- Submissions require anonymous auth, a valid parent hackathon, and schema validation in Firestore rules.
-- Each team lead email can register one idea and submit one final project per hackathon.
-- Organizers bind to a browser session via anonymous auth when creating a portal.
-- Admin token updates on a new device go through the `updateHackathonConfig` Cloud Function.
-- Settings are hidden from attendees; only organizers and admin-link holders can open them.
-- Optional App Check reduces automated abuse.
-
-## How Organizers Use It
-
-1. Open the portal.
-2. Click Settings.
-3. Enter the hackathon title and tagline.
-4. Click Save and Generate Link.
-5. Share the attendee link with teams.
-6. Use **Save Settings** later to update title/tagline without changing the portal link.
-
-Teams register ideas and submit final projects through the shared link. All data is stored in Firebase under that hackathon ID.
-
-## Future Backend Migration
-
-Portal config reads/writes go through `src/services/portalConfig.ts`, and submissions go through `src/services/submission.ts`. The UI can later support organizer auth, dashboards, CSV export, judging, or duplicate idea detection without rewriting the forms.
 
 ---
 
-Built with love using [Cursor](https://cursor.com).
+## Security Model
+
+- **Admins:** Only Google accounts in Firestore `config/admins.emails` can create events and upload CSVs.
+- **Judges:** Enter a private code (from `VITE_JUDGES`), then sign in anonymously to read team data and save evaluations.
+- Firestore rules let anonymous users read event/dataset data and write only their own evaluation documents.
+- `config/admins` is read-only from the client — manage admins in Firebase Console.
+- Judge codes in `VITE_*` env vars are visible in the built app — treat them as shared secrets, not strong authentication.
+- Typeform handles participant-facing forms.
+
+---
+
+## Troubleshooting
+
+| Problem | Fix |
+|---------|-----|
+| "Permission denied" on upload | Old rules still deployed. Publish `firestore.rules` and deploy indexes |
+| "Permission denied" but email is in Firestore | `emails` field is probably a **string** instead of an **array** — recreate as array type |
+| "Account is not authorized" | Add your Gmail to `config/admins.emails` in Firebase Console |
+| Query requires an index | Run `npx firebase-tools deploy --only firestore:indexes` |
+| Google sign-in popup blocked | Allow pop-ups for localhost or your production domain |
+| "Google sign-in is not enabled" | Enable Google provider in Firebase Authentication |
+| Wrong primary email detected | Use **Override** on the dashboard, or rename Typeform question to `Team Lead Email` |
+| No team members in expand view | Use numbered fields (`Member 1 Name` / `Member 1 Email`) or a `Team Members` text field |
+| Cross-check issues missing | Upload both CSVs for the same event, ensure emails match, then click **Re-analyze** |
+| Cross-check false positives | Use the same team lead email on registration and submission forms |
+| Data empty after re-upload | Re-upload CSV — safe import uses `importId`; legacy rows are replaced on next import |
+| Typeform column missing in table | Re-export CSV from Typeform; ensure the question has at least one response |
+| Judge "Invalid code" | Check `VITE_JUDGES` in production env; codes are case-sensitive |
+| Judge "Permission denied" | Enable Anonymous auth; deploy latest `firestore.rules` |
+| Judge portal empty | Upload registration/submission CSVs first; judges see teams with submissions by default |
+| Admin and judge same browser | Use incognito for judges, or sign out admin first |
+
+---
+
+Built with [Cursor](https://cursor.com).
