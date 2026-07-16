@@ -14,15 +14,18 @@ import { JudgeScoresSummary } from "../components/JudgeScoresSummary";
 import { JudgeFeedbackChips } from "../components/JudgeFeedbackChips";
 import { TeamsTabRatingFilters } from "../components/TeamRatingFilters";
 import { StarRating } from "../components/StarRating";
+import { VolunteerProgressSummary } from "../components/VolunteerProgressSummary";
 import { useAuth } from "../hooks/useAuth";
 import { useJudgeSession } from "../hooks/useJudgeSession";
 import { formatEventDate, getEvent } from "../services/events";
 import { loadEventTeams } from "../services/eventTeams";
 import { loadEventEvaluations, saveJudgeEvaluation, findJudgeEvaluation } from "../services/judgeEvaluations";
+import { loadEventVolunteerProgress } from "../services/volunteerProgress";
 import type { HackathonEvent } from "../types/event";
 import type { JudgeEvaluation } from "../types/judge";
 import { MAX_JUDGE_NOTES_LENGTH } from "../types/judge";
 import type { MergedTeam } from "../types/teams";
+import type { VolunteerProgressEntry } from "../types/volunteer";
 import { getFriendlyError } from "../utils/errors";
 import {
   getTeamAverageRating,
@@ -35,7 +38,7 @@ import {
   type TeamRatingSort,
 } from "../utils/teamRatingFilters";
 
-type TabId = "teams" | "summary";
+type TabId = "teams" | "summary" | "volunteer";
 
 const PAGE_SIZE = 20;
 
@@ -47,10 +50,14 @@ export function JudgeEventPage() {
   const [event, setEvent] = useState<HackathonEvent | null>(null);
   const [teams, setTeams] = useState<MergedTeam[]>([]);
   const [evaluations, setEvaluations] = useState<Map<string, JudgeEvaluation[]>>(new Map());
+  const [volunteerProgress, setVolunteerProgress] = useState<Map<string, VolunteerProgressEntry[]>>(
+    new Map(),
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>("teams");
   const [searchQuery, setSearchQuery] = useState("");
+  const [volunteerSearchQuery, setVolunteerSearchQuery] = useState("");
   const [showAllTeams, setShowAllTeams] = useState(false);
   const [teamsMyRatingFilter, setTeamsMyRatingFilter] = useState<MyRatingFilter>("all");
   const [teamsAverageFilter, setTeamsAverageFilter] = useState<AverageRatingFilter>("all");
@@ -72,10 +79,11 @@ export function JudgeEventPage() {
       setIsLoading(true);
       setLoadError(null);
       try {
-        const [eventData, teamsData, evals] = await Promise.all([
+        const [eventData, teamsData, evals, progress] = await Promise.all([
           getEvent(currentEventId),
           loadEventTeams(currentEventId),
           loadEventEvaluations(currentEventId),
+          loadEventVolunteerProgress(currentEventId),
         ]);
 
         if (!eventData) {
@@ -86,6 +94,7 @@ export function JudgeEventPage() {
         setEvent(eventData);
         setTeams(teamsData.teams);
         setEvaluations(evals);
+        setVolunteerProgress(progress);
       } catch (error) {
         setLoadError(getFriendlyError(error, "Failed to load event data."));
       } finally {
@@ -188,7 +197,7 @@ export function JudgeEventPage() {
             </p>
             <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950 dark:text-white">{event.name}</h1>
             <p className="mt-2 max-w-2xl text-sm text-slate-600 dark:text-slate-300">
-              Review teams, rate submissions, and see feedback from all judges.
+              Review teams, rate submissions, and check volunteer checkpoint progress.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -204,7 +213,12 @@ export function JudgeEventPage() {
 
         <div className="mt-6 flex flex-wrap gap-2">
           <TabButton active={activeTab === "teams"} label="Teams" onClick={() => setActiveTab("teams")} />
-          <TabButton active={activeTab === "summary"} label="Summary" onClick={() => setActiveTab("summary")} />
+          <TabButton active={activeTab === "summary"} label="Judge scores" onClick={() => setActiveTab("summary")} />
+          <TabButton
+            active={activeTab === "volunteer"}
+            label="Volunteer progress"
+            onClick={() => setActiveTab("volunteer")}
+          />
         </div>
       </div>
 
@@ -234,13 +248,22 @@ export function JudgeEventPage() {
           totalPages={totalPages}
           totalTeams={teamsTabTeams.length}
         />
-      ) : (
+      ) : activeTab === "summary" ? (
         <JudgeScoresSummary
           evaluations={evaluations}
           onSearchQueryChange={setSearchQuery}
           searchQuery={searchQuery}
           showAllTeams={showAllTeams}
           teams={visibleTeams}
+          totalTeamsCount={teams.length}
+        />
+      ) : (
+        <VolunteerProgressSummary
+          onSearchQueryChange={setVolunteerSearchQuery}
+          progressByTeam={volunteerProgress}
+          searchQuery={volunteerSearchQuery}
+          showAllTeams
+          teams={teams}
           totalTeamsCount={teams.length}
         />
       )}
@@ -488,7 +511,18 @@ function JudgeTeamCard({
           <h3 className="truncate font-semibold text-slate-950 dark:text-white">
             {team.teamName || "Unnamed team"}
           </h3>
-          <p className="mt-1 truncate text-sm text-slate-500">{team.primaryEmail}</p>
+          {team.projectTitle ? (
+            <p className="mt-1 truncate text-sm font-medium text-slate-700 dark:text-slate-200">
+              {team.projectTitle}
+            </p>
+          ) : null}
+          <p className="mt-1 truncate text-sm text-slate-500">
+            {team.leadName ? `${team.leadName} · ` : ""}
+            {team.primaryEmail}
+          </p>
+          {team.domain ? (
+            <p className="mt-1 truncate text-xs text-slate-500">Domain: {team.domain}</p>
+          ) : null}
           {team.links.length > 0 ? (
             <div className="mt-2 flex flex-wrap gap-2">
               {team.links.slice(0, 3).map((link) => (

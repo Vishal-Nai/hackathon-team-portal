@@ -23,8 +23,13 @@ export function AppShell({ children }: AppShellProps) {
   const isAuthenticated = status === "authenticated";
   const isAdmin = role === "admin";
   const isJudgePortal = location.pathname.startsWith("/judge");
-  const isLoginPage = location.pathname === "/login" || location.pathname === "/judge/login";
-  const isInsideEvent = Boolean(eventId) && !isJudgePortal;
+  const isVolunteerPortal = location.pathname.startsWith("/volunteer");
+  const isPortalSurface = isJudgePortal || isVolunteerPortal;
+  const isLoginPage =
+    location.pathname === "/login" ||
+    location.pathname === "/judge/login" ||
+    location.pathname === "/volunteer/login";
+  const isInsideEvent = Boolean(eventId) && !isPortalSurface;
 
   const navItems = useMemo(() => {
     if (!isInsideEvent || !eventId) {
@@ -73,12 +78,15 @@ export function AppShell({ children }: AppShellProps) {
         )}
       >
         <header className="flex shrink-0 flex-wrap items-center justify-between gap-4 py-2">
-          <Link className="group flex items-center gap-3" to={isAdmin ? "/" : isJudgePortal ? location.pathname : "/login"}>
+          <Link
+            className="group flex items-center gap-3"
+            to={isAdmin ? "/" : isPortalSurface ? location.pathname : "/login"}
+          >
             <PortalLogo />
             <span>
               <span className="block text-sm font-bold tracking-tight">{appConfig.appName}</span>
               <span className="block text-xs text-slate-500 dark:text-slate-400">
-                {isJudgePortal ? "Judge portal" : "Admin portal"}
+                {isVolunteerPortal ? "Volunteer portal" : isJudgePortal ? "Judge portal" : "Admin portal"}
               </span>
             </span>
           </Link>
@@ -111,7 +119,7 @@ export function AppShell({ children }: AppShellProps) {
                   {mobileNavOpen ? <X size={18} /> : <Menu size={18} />}
                 </button>
               </>
-            ) : !isJudgePortal ? (
+            ) : !isPortalSurface ? (
               <Link
                 className="inline-flex min-h-11 items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold dark:border-slate-800 dark:bg-slate-950"
                 to="/login"

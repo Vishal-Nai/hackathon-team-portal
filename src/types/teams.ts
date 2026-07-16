@@ -18,6 +18,11 @@ export interface MergedTeam {
   submission: CsvRow | null;
   links: TeamLink[];
   issues: string[];
+  /** From registration CSV when available. */
+  leadName: string;
+  domain: string;
+  projectTitle: string;
+  projectDescription: string;
 }
 
 export interface EventSummaryStats {

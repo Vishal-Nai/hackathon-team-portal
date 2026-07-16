@@ -79,6 +79,88 @@ service cloud.firestore {
         && request.resource.data.teamId.size() > 0;
     }
 
+    function isValidVolunteerProgressParent() {
+      return request.resource.data.keys().hasOnly(['teamId'])
+        && request.resource.data.teamId is string
+        && request.resource.data.teamId.size() > 0;
+    }
+
+    function isValidVolunteerCheckpointId(checkpointId) {
+      return checkpointId in ['cp1', 'cp2', 'cp3', 'cp4', 'final'];
+    }
+
+    function isValidVolunteerDomainId(domainId) {
+      return domainId == ''
+        || domainId in ['learning', 'health', 'cities', 'everyday'];
+    }
+
+    function isOwnedVolunteerEntry() {
+      return request.resource.data.volunteerSessionId == request.auth.uid
+        && request.resource.data.volunteerSessionId is string
+        && request.resource.data.volunteerSessionId.size() > 0;
+    }
+
+    function volunteerEntryBaseValid() {
+      return request.resource.data.keys().hasOnly([
+          'volunteerName',
+          'volunteerSessionId',
+          'checkpointId',
+          'totalScore',
+          'domainAligned',
+          'domainId',
+          'feedback',
+          'recommendation',
+          'createdAt',
+          'updatedAt'
+        ])
+        && isOwnedVolunteerEntry()
+        && request.resource.data.volunteerName is string
+        && request.resource.data.volunteerName.size() > 0
+        && request.resource.data.volunteerName.size() <= 80
+        && isValidVolunteerCheckpointId(request.resource.data.checkpointId)
+        && request.resource.data.totalScore is int
+        && request.resource.data.totalScore >= 0
+        && request.resource.data.totalScore <= 5
+        && request.resource.data.domainAligned is bool
+        && isValidVolunteerDomainId(request.resource.data.domainId)
+        && request.resource.data.feedback is string
+        && request.resource.data.feedback.size() <= 2000
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    function isValidVolunteerScoreEntry() {
+      return volunteerEntryBaseValid()
+        && request.resource.data.checkpointId in ['cp1', 'cp2', 'cp3', 'cp4']
+        && request.resource.data.totalScore >= 1
+        && request.resource.data.totalScore <= 5
+        && (
+          !request.resource.data.keys().hasAny(['recommendation'])
+          || request.resource.data.recommendation == null
+        );
+    }
+
+    function isValidVolunteerFinalEntry() {
+      return volunteerEntryBaseValid()
+        && request.resource.data.checkpointId == 'final'
+        && request.resource.data.totalScore == 0
+        && request.resource.data.keys().hasAny(['recommendation'])
+        && request.resource.data.recommendation is int
+        && request.resource.data.recommendation >= 1
+        && request.resource.data.recommendation <= 5;
+    }
+
+    function isValidVolunteerEntryCreate() {
+      return (isValidVolunteerScoreEntry() || isValidVolunteerFinalEntry())
+        && request.resource.data.createdAt == request.time;
+    }
+
+    function isValidVolunteerEntryUpdate() {
+      return (isValidVolunteerScoreEntry() || isValidVolunteerFinalEntry())
+        && request.resource.data.volunteerSessionId == resource.data.volunteerSessionId
+        && request.resource.data.checkpointId == resource.data.checkpointId
+        && request.resource.data.createdAt == resource.data.createdAt;
+    }
+
     function isValidEventCreate() {
       return isAdmin()
         && request.resource.data.keys().hasOnly([
@@ -159,6 +241,19 @@ service cloud.firestore {
             && isValidJudgeEvaluation();
           allow delete: if isAdmin()
             || (isAnonymousSignedIn() && isLegacyJudgeDocId(judgeId));
+        }
+      }
+
+      match /volunteerProgress/{teamId} {
+        allow read: if canReadEventData();
+        allow create, update: if isAnonymousSignedIn() && isValidVolunteerProgressParent();
+        allow delete: if isAdmin();
+
+        match /entries/{entryId} {
+          allow read: if canReadEventData();
+          allow create: if isAnonymousSignedIn() && isValidVolunteerEntryCreate();
+          allow update: if isAnonymousSignedIn() && isValidVolunteerEntryUpdate();
+          allow delete: if isAdmin();
         }
       }
     }

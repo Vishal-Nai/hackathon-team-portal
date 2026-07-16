@@ -281,8 +281,19 @@ function TeamRow({
   return (
     <>
       <tr className="border-b border-slate-100 dark:border-slate-900">
-        <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">{team.teamName}</td>
-        <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{team.primaryEmail}</td>
+        <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">
+          <span className="block">{team.teamName}</span>
+          {team.projectTitle ? (
+            <span className="mt-0.5 block text-xs font-normal text-slate-500">{team.projectTitle}</span>
+          ) : null}
+          {team.domain ? (
+            <span className="mt-0.5 block text-xs font-normal text-slate-500">{team.domain}</span>
+          ) : null}
+        </td>
+        <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+          {team.leadName ? <span className="mb-0.5 block text-xs text-slate-500">{team.leadName}</span> : null}
+          {team.primaryEmail}
+        </td>
         <td className="px-4 py-3">
           <StatusBadge status={team.status} />
         </td>

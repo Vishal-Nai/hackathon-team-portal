@@ -3,8 +3,10 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "./components/AppShell";
 import { JudgeRoute } from "./components/JudgeRoute";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import { VolunteerRoute } from "./components/VolunteerRoute";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
 import { AdminJudgeScoresPage } from "./pages/AdminJudgeScoresPage";
+import { AdminVolunteerProgressPage } from "./pages/AdminVolunteerProgressPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { EventDashboardHome } from "./pages/EventDashboardHome";
 import { EventTeamsPage } from "./pages/EventTeamsPage";
@@ -12,6 +14,8 @@ import { EventsHome } from "./pages/EventsHome";
 import { JudgeEventPage } from "./pages/JudgeEventPage";
 import { JudgeLoginPage } from "./pages/JudgeLoginPage";
 import { LoginPage } from "./pages/LoginPage";
+import { VolunteerEventPage } from "./pages/VolunteerEventPage";
+import { VolunteerLoginPage } from "./pages/VolunteerLoginPage";
 
 export function App() {
   return (
@@ -64,6 +68,15 @@ function AppRoutes() {
         }
         path="/judge/events/:eventId"
       />
+      <Route element={<VolunteerLoginPage />} path="/volunteer/login" />
+      <Route
+        element={
+          <VolunteerRoute>
+            <VolunteerEventPage />
+          </VolunteerRoute>
+        }
+        path="/volunteer/events/:eventId"
+      />
       <Route
         element={
           <ProtectedRoute>
@@ -91,6 +104,14 @@ function AppRoutes() {
       <Route
         element={
           <ProtectedRoute>
+            <AdminVolunteerProgressPage />
+          </ProtectedRoute>
+        }
+        path="/events/:eventId/volunteer-progress"
+      />
+      <Route
+        element={
+          <ProtectedRoute>
             <EventTeamsPage />
           </ProtectedRoute>
         }
@@ -100,7 +121,7 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <DashboardPage
-              description="Import your Typeform registration export. All CSV columns are shown dynamically. Expand any row to see team members and detected data issues."
+              description="Import your Typeform registration export. Partial in-progress responses are skipped automatically. Team lead, domain, project idea, and teammates are detected from the standard hackathon form columns."
               title="Registrations"
               type="registrations"
             />

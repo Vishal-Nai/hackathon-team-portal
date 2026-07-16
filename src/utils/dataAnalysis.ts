@@ -1,4 +1,5 @@
 import type { ColumnMapping, CsvRow, DashboardType, TeamMemberInfo, TeamSummary } from "../types/dashboard";
+import { isMetadataColumn } from "../constants/registrationSchema";
 import {
   extractEmailsFromRow,
   isTeammateEmailColumn,
@@ -178,6 +179,11 @@ export function extractTeamSummary(
     teamLeadEmail,
     teamLeadColumn: schema.teamLeadEmail || "auto",
     teamName: schema.teamName ? row.fields[schema.teamName] : undefined,
+    teamLeadName: schema.teamLeadName ? row.fields[schema.teamLeadName]?.trim() || undefined : undefined,
+    domain: schema.domainColumn ? row.fields[schema.domainColumn]?.trim() || undefined : undefined,
+    projectTitle: schema.projectTitleColumn
+      ? row.fields[schema.projectTitleColumn]?.trim() || undefined
+      : undefined,
     members: extractMembers(row.fields, columns, schema),
     rowId: row.id,
   };
@@ -276,7 +282,20 @@ export function analyzeRows(
       validateSubmissionUrls(row.fields, schema.urlColumns, issues);
     }
 
+    if (type === "registrations") {
+      if (schema.domainColumn && !row.fields[schema.domainColumn]?.trim()) {
+        issues.push("Missing domain");
+      }
+      if (schema.teamName && !row.fields[schema.teamName]?.trim()) {
+        issues.push("Missing team name");
+      }
+    }
+
     for (const column of columns) {
+      if (isMetadataColumn(column)) {
+        continue;
+      }
+
       const value = row.fields[column] ?? "";
       if (!value) {
         continue;

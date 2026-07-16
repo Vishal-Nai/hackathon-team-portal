@@ -1,7 +1,10 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { User } from "firebase/auth";
 import {
+  clearJudgeSessionStorage,
+  clearVolunteerSessionStorage,
   signInAsJudge,
+  signInAsVolunteer,
   signInWithGoogle,
   signOutUser,
   subscribeToAuth,
@@ -16,6 +19,7 @@ interface AuthContextValue {
   role: AuthRole;
   signIn: () => Promise<void>;
   signInJudge: (options?: { forceFresh?: boolean }) => Promise<void>;
+  signInVolunteer: (options?: { forceFresh?: boolean }) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -50,9 +54,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await signInWithGoogle();
       },
       signInJudge: async (options) => {
+        clearVolunteerSessionStorage();
         await signInAsJudge(options);
       },
+      signInVolunteer: async (options) => {
+        clearJudgeSessionStorage();
+        await signInAsVolunteer(options);
+      },
       signOut: async () => {
+        clearJudgeSessionStorage();
+        clearVolunteerSessionStorage();
         await signOutUser();
       },
     }),

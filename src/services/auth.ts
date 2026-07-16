@@ -26,9 +26,18 @@ export function clearJudgeSessionStorage(): void {
   sessionStorage.removeItem("judgeSession");
 }
 
+export function clearVolunteerSessionStorage(): void {
+  sessionStorage.removeItem("volunteerSession");
+}
+
+export function clearPortalSessionStorage(): void {
+  clearJudgeSessionStorage();
+  clearVolunteerSessionStorage();
+}
+
 export async function signInWithGoogle(): Promise<User> {
   const auth = getFirebaseAuth();
-  clearJudgeSessionStorage();
+  clearPortalSessionStorage();
 
   try {
     const result = await signInWithPopup(auth, googleProvider);
@@ -71,6 +80,11 @@ export async function signInAsJudge(options?: { forceFresh?: boolean }): Promise
     }
     throw error;
   }
+}
+
+/** Anonymous Firebase auth for volunteer portal (same provider as judges). */
+export async function signInAsVolunteer(options?: { forceFresh?: boolean }): Promise<User> {
+  return signInAsJudge(options);
 }
 
 export async function signOutUser(): Promise<void> {

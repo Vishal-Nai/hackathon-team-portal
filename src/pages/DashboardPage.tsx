@@ -163,9 +163,15 @@ export function DashboardPage({ type, title, description }: DashboardPageProps) 
       }
 
       const imported = await importCsvToDashboard(eventId, type, parsed, file.name, user.email);
-      setMeta(imported.meta);
+      setMeta(imported.dataset.meta);
       setPage(0);
-      toast.success(`Imported ${imported.meta?.rowCount ?? 0} rows from ${file.name}`);
+      const dropped = imported.droppedPartial + imported.droppedNoEmail;
+      const baseMsg = `Imported ${imported.dataset.meta?.rowCount ?? 0} teams from ${file.name}`;
+      toast.success(
+        dropped > 0
+          ? `${baseMsg} (skipped ${dropped} incomplete/partial Typeform rows)`
+          : baseMsg,
+      );
       await loadPage();
     } catch (error) {
       toast.error(getFriendlyError(error, "Failed to import CSV."));

@@ -1,4 +1,5 @@
 import type { ColumnMapping } from "../types/dashboard";
+import { TYPEFORM_REGISTRATION_COLUMNS, findColumn } from "../constants/registrationSchema";
 
 const EMAIL_PATTERN = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i;
 const URL_PATTERN = /^https?:\/\/.+/i;
@@ -14,7 +15,15 @@ const TEAM_LEAD_HEADER_PATTERNS = [
   /^email$/i,
   /^contact\s*email$/i,
 ];
+const TEAM_LEAD_NAME_HEADER_PATTERNS = [/team\s*lead.*name/i, /lead\s*name/i];
 const TEAM_NAME_HEADER_PATTERNS = [/team\s*name/i, /^team$/i, /group\s*name/i];
+const DOMAIN_HEADER_PATTERNS = [/select\s*domain/i, /\bdomain\b/i];
+const PROJECT_TITLE_HEADER_PATTERNS = [/project\s*idea\s*title/i, /project\s*title/i, /^title$/i];
+const PROJECT_DESCRIPTION_HEADER_PATTERNS = [
+  /project\s*idea\s*description/i,
+  /project\s*description/i,
+  /^description$/i,
+];
 const MEMBER_NAME_HEADER_PATTERNS = [/member.*name/i, /teammate.*name/i, /participant.*name/i, /^member\s*\d+/i];
 const MEMBER_EMAIL_HEADER_PATTERNS = [
   /member.*email/i,
@@ -33,6 +42,10 @@ export type UrlColumnKind = "github" | "demo" | "video" | "url";
 export interface DetectedSchema {
   teamLeadEmail: string;
   teamName?: string;
+  teamLeadName?: string;
+  domainColumn?: string;
+  projectTitleColumn?: string;
+  projectDescriptionColumn?: string;
   emailColumns: string[];
   urlColumns: Array<{ column: string; kind: UrlColumnKind }>;
   memberNameColumns: string[];
@@ -193,13 +206,38 @@ function nameScore(column: string, values: string[]): number {
 }
 
 export function detectSchema(columns: string[], rows: Record<string, string>[]): DetectedSchema {
+  const preferredLeadEmail = findColumn(columns, TYPEFORM_REGISTRATION_COLUMNS.teamLeadEmail, TEAM_LEAD_HEADER_PATTERNS);
+  const preferredTeamName = findColumn(columns, TYPEFORM_REGISTRATION_COLUMNS.teamName, TEAM_NAME_HEADER_PATTERNS);
+  const preferredLeadName = findColumn(
+    columns,
+    TYPEFORM_REGISTRATION_COLUMNS.teamLeadName,
+    TEAM_LEAD_NAME_HEADER_PATTERNS,
+  );
+  const preferredDomain = findColumn(columns, TYPEFORM_REGISTRATION_COLUMNS.domain, DOMAIN_HEADER_PATTERNS);
+  const preferredProjectTitle = findColumn(
+    columns,
+    TYPEFORM_REGISTRATION_COLUMNS.projectTitle,
+    PROJECT_TITLE_HEADER_PATTERNS,
+  );
+  const preferredProjectDescription = findColumn(
+    columns,
+    TYPEFORM_REGISTRATION_COLUMNS.projectDescription,
+    PROJECT_DESCRIPTION_HEADER_PATTERNS,
+  );
+  const preferredTeammateEmails = findColumn(
+    columns,
+    TYPEFORM_REGISTRATION_COLUMNS.teammateEmails,
+    MEMBER_EMAIL_HEADER_PATTERNS,
+  );
+
   const emailScores = columns
     .map((column) => ({ column, score: emailScore(column, sampleValues(rows, column)) }))
     .filter((entry) => entry.score > 0)
     .sort((a, b) => b.score - a.score);
 
   const teamLeadEmail =
-    emailScores.find((entry) => !matchesAny(entry.column, MEMBER_EMAIL_HEADER_PATTERNS))?.column
+    preferredLeadEmail
+    ?? emailScores.find((entry) => !matchesAny(entry.column, MEMBER_EMAIL_HEADER_PATTERNS))?.column
     ?? emailScores[0]?.column
     ?? "";
   const emailColumns = emailScores.map((entry) => entry.column);
@@ -209,14 +247,28 @@ export function detectSchema(columns: string[], rows: Record<string, string>[]):
     .filter((entry) => entry.score > 0)
     .sort((a, b) => b.score - a.score);
 
-  const teamNameCandidate = nameScores.find((entry) => matchesAny(entry.column, TEAM_NAME_HEADER_PATTERNS)) ?? nameScores[0];
-  const teamName = teamNameCandidate?.column;
+  const teamName =
+    preferredTeamName
+    ?? nameScores.find((entry) => matchesAny(entry.column, TEAM_NAME_HEADER_PATTERNS))?.column
+    ?? nameScores[0]?.column;
 
-  const memberEmailColumns = emailColumns.filter((column) => column !== teamLeadEmail);
+  const teamLeadName = preferredLeadName;
+
+  const memberEmailColumns = [
+    ...new Set(
+      [
+        preferredTeammateEmails,
+        ...emailColumns.filter((column) => column !== teamLeadEmail),
+      ].filter((column): column is string => Boolean(column)),
+    ),
+  ];
   const memberNameColumns = nameScores
     .map((entry) => entry.column)
     .filter(
-      (column) => column !== teamName && matchesAny(column, MEMBER_NAME_HEADER_PATTERNS),
+      (column) =>
+        column !== teamName &&
+        column !== teamLeadName &&
+        matchesAny(column, MEMBER_NAME_HEADER_PATTERNS),
     );
 
   const urlColumns = columns
@@ -235,6 +287,10 @@ export function detectSchema(columns: string[], rows: Record<string, string>[]):
   return {
     teamLeadEmail,
     ...(teamName ? { teamName } : {}),
+    ...(teamLeadName ? { teamLeadName } : {}),
+    ...(preferredDomain ? { domainColumn: preferredDomain } : {}),
+    ...(preferredProjectTitle ? { projectTitleColumn: preferredProjectTitle } : {}),
+    ...(preferredProjectDescription ? { projectDescriptionColumn: preferredProjectDescription } : {}),
     emailColumns,
     urlColumns,
     memberNameColumns,

@@ -1,3 +1,4 @@
+import { isMetadataColumn } from "../constants/registrationSchema";
 import { detectSchema } from "./columnDetection";
 
 export interface ColumnPreferences {
@@ -46,11 +47,20 @@ export function suggestPinnedColumns(
   const schema = detectSchema(columns, sampleRows);
   const pinned = new Set<string>();
 
+  if (schema.teamName) {
+    pinned.add(schema.teamName);
+  }
+  if (schema.teamLeadName) {
+    pinned.add(schema.teamLeadName);
+  }
   if (schema.teamLeadEmail) {
     pinned.add(schema.teamLeadEmail);
   }
-  if (schema.teamName) {
-    pinned.add(schema.teamName);
+  if (schema.domainColumn) {
+    pinned.add(schema.domainColumn);
+  }
+  if (schema.projectTitleColumn) {
+    pinned.add(schema.projectTitleColumn);
   }
   for (const { column } of schema.urlColumns.slice(0, 3)) {
     pinned.add(column);
@@ -59,13 +69,22 @@ export function suggestPinnedColumns(
   return columns.filter((column) => pinned.has(column));
 }
 
+export function suggestHiddenColumns(columns: string[]): string[] {
+  return columns.filter((column) => isMetadataColumn(column));
+}
+
 export function orderDisplayColumns(
   columns: string[],
   preferences: ColumnPreferences,
   sampleRows: Record<string, string>[] = [],
 ): string[] {
   const suggested = suggestPinnedColumns(columns, sampleRows);
-  const hidden = new Set(preferences.hidden);
+  const defaultHidden = suggestHiddenColumns(columns);
+  const hidden = new Set(
+    preferences.hidden.length > 0 || preferences.pinned.length > 0
+      ? preferences.hidden
+      : defaultHidden,
+  );
   const pinned = preferences.pinned.length > 0 ? preferences.pinned : suggested;
 
   const visible = columns.filter((column) => !hidden.has(column));

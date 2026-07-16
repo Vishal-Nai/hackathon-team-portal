@@ -28,6 +28,44 @@ function resolveTeamName(
   return "";
 }
 
+function fieldFromSchema(
+  fields: Record<string, string>,
+  columns: string[],
+  rows: Record<string, string>[],
+  mapping: ColumnMapping | undefined,
+  key: "teamLeadName" | "domainColumn" | "projectTitleColumn" | "projectDescriptionColumn",
+): string {
+  const schema = resolveSchema(columns, rows, mapping);
+  const column = schema[key];
+  if (!column) {
+    return "";
+  }
+  return fields[column]?.trim() ?? "";
+}
+
+function registrationExtras(
+  row: CsvRow | null,
+  columns: string[],
+  rows: Record<string, string>[],
+  mapping?: ColumnMapping,
+): Pick<MergedTeam, "leadName" | "domain" | "projectTitle" | "projectDescription"> {
+  if (!row) {
+    return { leadName: "", domain: "", projectTitle: "", projectDescription: "" };
+  }
+  return {
+    leadName: fieldFromSchema(row.fields, columns, rows, mapping, "teamLeadName"),
+    domain: fieldFromSchema(row.fields, columns, rows, mapping, "domainColumn"),
+    projectTitle: fieldFromSchema(row.fields, columns, rows, mapping, "projectTitleColumn"),
+    projectDescription: fieldFromSchema(
+      row.fields,
+      columns,
+      rows,
+      mapping,
+      "projectDescriptionColumn",
+    ),
+  };
+}
+
 function extractLinks(
   fields: Record<string, string>,
   columns: string[],
@@ -130,6 +168,8 @@ export function buildMergedTeams(
     const links = match ? extractLinks(match.row.fields, subColumns, subFields) : [];
     const issues = [...reg.row.issues, ...(match?.row.issues ?? [])];
 
+    const extras = registrationExtras(reg.row, regColumns, regFields, regMapping);
+
     teams.push({
       id: primaryEmail,
       primaryEmail,
@@ -140,6 +180,7 @@ export function buildMergedTeams(
       submission: match?.row ?? null,
       links,
       issues,
+      ...extras,
     });
   }
 
@@ -159,6 +200,10 @@ export function buildMergedTeams(
       submission: sub.row,
       links,
       issues: sub.row.issues,
+      leadName: "",
+      domain: "",
+      projectTitle: "",
+      projectDescription: "",
     });
   }
 

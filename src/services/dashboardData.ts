@@ -34,7 +34,14 @@ import {
   getCrossReferenceEmails,
   suggestColumnMapping,
 } from "../utils/dataAnalysis";
+import { filterRegistrationRows } from "../utils/registrationRows";
 import { getFirebaseDb } from "./firebase";
+
+export interface ImportCsvResult {
+  dataset: DashboardDataset;
+  droppedPartial: number;
+  droppedNoEmail: number;
+}
 
 const BATCH_SIZE = 400;
 
@@ -230,7 +237,24 @@ export async function importCsvToDashboard(
   parsed: ParsedCsv,
   fileName: string,
   uploadedBy: string,
-): Promise<DashboardDataset> {
+): Promise<ImportCsvResult> {
+  let importRows = parsed.rows;
+  let droppedPartial = 0;
+  let droppedNoEmail = 0;
+
+  if (type === "registrations") {
+    const filtered = filterRegistrationRows(parsed.rows);
+    importRows = filtered.kept;
+    droppedPartial = filtered.droppedPartial;
+    droppedNoEmail = filtered.droppedNoEmail;
+
+    if (importRows.length === 0) {
+      throw new Error(
+        `No completed registrations found. Skipped ${droppedPartial} partial and ${droppedNoEmail} rows without a team lead email.`,
+      );
+    }
+  }
+
   const existingMeta = await loadDashboardMeta(eventId, type);
   const columnsChanged =
     existingMeta &&
@@ -239,7 +263,7 @@ export async function importCsvToDashboard(
   const columnMapping =
     existingMeta?.columnMapping?.manualOverride && !columnsChanged
       ? existingMeta.columnMapping
-      : suggestColumnMapping(parsed.columns, parsed.rows);
+      : suggestColumnMapping(parsed.columns, importRows);
 
   const crossRef = await loadCrossReferenceDataset(eventId, type);
   const crossEmails =
@@ -252,7 +276,7 @@ export async function importCsvToDashboard(
       : undefined;
 
   const importId = crypto.randomUUID();
-  const rawRows = parsed.rows.map((fields, index) => ({
+  const rawRows = importRows.map((fields, index) => ({
     id: `row-${index}`,
     rowIndex: index,
     fields,
@@ -328,7 +352,11 @@ export async function importCsvToDashboard(
     // Other dashboard may not exist yet.
   }
 
-  return { meta, rows: analyzedRows };
+  return {
+    dataset: { meta, rows: analyzedRows },
+    droppedPartial,
+    droppedNoEmail,
+  };
 }
 
 async function deleteRowsByImportId(eventId: string, type: DashboardType, importId: string) {

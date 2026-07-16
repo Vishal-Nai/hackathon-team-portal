@@ -16,7 +16,7 @@ const FIREBASE_AUTH_MESSAGES: Record<string, string> = {
 export function getFriendlyError(error: unknown, fallback = "Something went wrong. Please try again."): string {
   if (error instanceof FirebaseError) {
     if (error.code === "permission-denied") {
-      return "Firestore permission denied. If you are a judge, ask the organizer to deploy the latest firestore.rules and enable Anonymous auth. If you are an admin, verify config/admins contains your email as an array.";
+      return "Firestore permission denied. Deploy the latest firestore.rules (includes volunteerProgress) and enable Anonymous auth in Firebase Console → Authentication → Sign-in method. Admins: verify config/admins.emails contains your email.";
     }
     if (FIREBASE_AUTH_MESSAGES[error.code]) {
       return FIREBASE_AUTH_MESSAGES[error.code];

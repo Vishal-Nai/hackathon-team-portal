@@ -1,6 +1,16 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { AlertTriangle, ArrowRight, Calendar, ClipboardList, ExternalLink, Pencil, Rocket, Star } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowRight,
+  Calendar,
+  ClipboardList,
+  ExternalLink,
+  Pencil,
+  Rocket,
+  Star,
+  Users,
+} from "lucide-react";
 import { Button } from "../components/Button";
 import { EditEventModal } from "../components/EditEventModal";
 import { EventSummaryPanel } from "../components/EventSummaryPanel";
@@ -12,7 +22,9 @@ import type { HackathonEvent } from "../types/event";
 import type { EventSummaryStats, MergedTeam } from "../types/teams";
 import { getFriendlyError } from "../utils/errors";
 import { isJudgePortalConfigured } from "../config/judges";
+import { isVolunteerPortalConfigured } from "../config/volunteers";
 import { countEventEvaluations } from "../services/judgeEvaluations";
+import { countVolunteerEntries } from "../services/volunteerProgress";
 
 interface DashboardSummary {
   rowCount: number;
@@ -45,6 +57,7 @@ export function EventDashboardHome() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [evaluationCount, setEvaluationCount] = useState<number | null>(null);
+  const [volunteerEntryCount, setVolunteerEntryCount] = useState<number | null>(null);
 
   useEffect(() => {
     if (!eventId) {
@@ -89,6 +102,15 @@ export function EventDashboardHome() {
             setEvaluationCount(count);
           } catch {
             setEvaluationCount(0);
+          }
+        }
+
+        if (isVolunteerPortalConfigured()) {
+          try {
+            const count = await countVolunteerEntries(currentEventId);
+            setVolunteerEntryCount(count);
+          } catch {
+            setVolunteerEntryCount(0);
           }
         }
       } catch (error) {
@@ -167,28 +189,59 @@ export function EventDashboardHome() {
 
       <SyncChecklist event={event} eventId={eventId} summary={summary} />
 
-      <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-950">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-bold text-slate-950 dark:text-white">Judge portal</h2>
-            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-              Share this link and a private access code with each judge. Judges can view teams, rate submissions, and see
-              each other&apos;s feedback.
-            </p>
-            <p className="mt-3 break-all rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 font-mono text-xs text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200">
-              {typeof window !== "undefined" ? `${window.location.origin}/judge/events/${eventId}` : `/judge/events/${eventId}`}
-            </p>
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-bold text-slate-950 dark:text-white">Volunteer progress</h2>
+              <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+                Share this link and the shared volunteer code. Volunteers rate checkpoint progress. Judges can also
+                open the Volunteer progress tab inside the judge portal (no extra code).
+              </p>
+              <p className="mt-3 break-all rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 font-mono text-xs text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200">
+                {typeof window !== "undefined"
+                  ? `${window.location.origin}/volunteer/login?eventId=${eventId}`
+                  : `/volunteer/login?eventId=${eventId}`}
+              </p>
+            </div>
+            {isVolunteerPortalConfigured() ? (
+              <Link
+                className="inline-flex min-h-11 items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-950 dark:text-white dark:hover:bg-slate-900"
+                to={`/events/${eventId}/volunteer-progress`}
+              >
+                <Users size={16} />
+                View progress
+                {volunteerEntryCount !== null && volunteerEntryCount > 0 ? ` (${volunteerEntryCount})` : ""}
+              </Link>
+            ) : null}
           </div>
-          {isJudgePortalConfigured() ? (
-            <Link
-              className="inline-flex min-h-11 items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-950 dark:text-white dark:hover:bg-slate-900"
-              to={`/events/${eventId}/judge-scores`}
-            >
-              <Star size={16} />
-              View judge scores
-              {evaluationCount !== null && evaluationCount > 0 ? ` (${evaluationCount})` : ""}
-            </Link>
-          ) : null}
+        </div>
+
+        <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-bold text-slate-950 dark:text-white">Judge portal</h2>
+              <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+                Share this link and a private access code with each judge. Judges can rate teams, see other judges&apos;
+                scores, and review volunteer checkpoint progress.
+              </p>
+              <p className="mt-3 break-all rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 font-mono text-xs text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200">
+                {typeof window !== "undefined"
+                  ? `${window.location.origin}/judge/events/${eventId}`
+                  : `/judge/events/${eventId}`}
+              </p>
+            </div>
+            {isJudgePortalConfigured() ? (
+              <Link
+                className="inline-flex min-h-11 items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-950 dark:text-white dark:hover:bg-slate-900"
+                to={`/events/${eventId}/judge-scores`}
+              >
+                <Star size={16} />
+                View judge scores
+                {evaluationCount !== null && evaluationCount > 0 ? ` (${evaluationCount})` : ""}
+              </Link>
+            ) : null}
+          </div>
         </div>
       </div>
 

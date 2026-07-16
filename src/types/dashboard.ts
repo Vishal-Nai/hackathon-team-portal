@@ -55,6 +55,9 @@ export interface TeamSummary {
   teamLeadEmail: string;
   teamLeadColumn: string;
   teamName?: string;
+  teamLeadName?: string;
+  domain?: string;
+  projectTitle?: string;
   members: TeamMemberInfo[];
   rowId: string;
 }
